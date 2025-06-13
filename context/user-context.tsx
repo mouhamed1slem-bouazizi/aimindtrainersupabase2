@@ -1,0 +1,324 @@
+"use client"
+
+import type React from "react"
+
+import { createContext, useContext, useEffect, useState } from "react"
+import { supabase } from "@/lib/supabase"
+import type { Tables } from "@/lib/supabase"
+import { useRouter } from "next/navigation"
+import { User, UserProfile } from "@/types/user"
+
+export interface UserProfile {
+  id: string
+  name: string
+  email: string
+  avatar?: string
+  memberSince: string
+  level: number
+  isPremium: boolean
+  preferences: {
+    reminders: boolean
+    morningReminder: string
+    eveningReminder: string
+    notifications: {
+      training: boolean
+      achievements: boolean
+      weeklyReports: boolean
+      coachTips: boolean
+    }
+    theme: string
+    language: string
+  }
+}
+
+interface UserContextType {
+  user: User | null
+  profile: UserProfile | null
+  isAuthenticated: boolean
+  isLoading: boolean
+  login: (email: string, password: string) => Promise<void>
+  logout: () => Promise<void>
+  register: (name: string, email: string, password: string) => Promise<void>
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>
+  updatePreferences: (preferences: Partial<UserProfile["preferences"]>) => Promise<void>
+}
+
+const UserContext = createContext<UserContextType | undefined>(undefined)
+
+export function useUser() {
+  const context = useContext(UserContext)
+  if (context === undefined) {
+    throw new Error("useUser must be used within a UserProvider")
+  }
+  return context
+}
+
+export function UserProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const router = useRouter()
+
+  // Function to refresh the session
+  const refreshSession = async () => {
+    console.log("UserProvider - Refreshing session")
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession()
+      if (error) {
+        console.error("UserProvider - Error refreshing session:", error)
+        return
+      }
+      console.log("UserProvider - Session refresh result:", { hasSession: !!session })
+      if (session?.user) {
+        setUser(session.user)
+        await fetchUserProfile(session.user.id)
+      } else {
+        setUser(null)
+        setProfile(null)
+      }
+    } catch (error) {
+      console.error("UserProvider - Error in refreshSession:", error)
+    }
+  }
+
+  useEffect(() => {
+    console.log("UserProvider - Initializing auth state listener")
+    
+    // Initial session check
+    refreshSession().finally(() => setIsLoading(false))
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("UserProvider - Auth state changed:", { event, session })
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (session?.user) {
+          console.log("UserProvider - User signed in or token refreshed")
+          setUser(session.user)
+          await fetchUserProfile(session.user.id)
+        }
+      } else if (event === 'SIGNED_OUT') {
+        console.log("UserProvider - User signed out")
+        setUser(null)
+        setProfile(null)
+      }
+      
+      setIsLoading(false)
+    })
+
+    // Set up periodic session refresh
+    const refreshInterval = setInterval(refreshSession, 5 * 60 * 1000) // Refresh every 5 minutes
+
+    return () => {
+      subscription.unsubscribe()
+      clearInterval(refreshInterval)
+    }
+  }, [])
+
+  const fetchUserProfile = async (userId: string) => {
+    console.log("UserProvider - Fetching profile for user:", userId)
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .single()
+
+      if (error) {
+        console.error("UserProvider - Error fetching profile:", error)
+        throw error
+      }
+
+      console.log("UserProvider - Profile fetched:", data)
+      setProfile(data)
+    } catch (error) {
+      console.error("UserProvider - Failed to fetch profile:", error)
+      setProfile(null)
+    }
+  }
+
+  const login = async (email: string, password: string) => {
+    console.log("UserProvider - Attempting login for:", email)
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        console.error("UserProvider - Login error:", error)
+        throw error
+      }
+
+      console.log("UserProvider - Login successful:", data)
+      if (data.user) {
+        setUser(data.user)
+        await fetchUserProfile(data.user.id)
+        // Refresh the session after successful login
+        await refreshSession()
+      }
+    } catch (error) {
+      console.error("UserProvider - Login failed:", error)
+      throw error
+    }
+  }
+
+  const logout = async () => {
+    console.log("UserProvider - Logging out")
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      setUser(null)
+      setProfile(null)
+      router.push("/login")
+    } catch (error) {
+      console.error("UserProvider - Logout error:", error)
+      throw error
+    }
+  }
+
+  const register = async (name: string, email: string, password: string) => {
+    setIsLoading(true)
+    try {
+      console.log("Starting registration process...")
+      
+      // Step 1: Create auth user
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+          },
+        },
+      })
+      
+      if (authError) {
+        console.error("Auth error during registration:", authError)
+        throw new Error(authError.message)
+      }
+
+      if (!authData.user) {
+        console.error("No user data returned from registration")
+        throw new Error("No user data returned from registration")
+      }
+
+      console.log("Auth user created successfully:", authData.user.id)
+
+      // Wait a moment for the trigger to create the profile
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      // Step 2: Verify profile was created
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single()
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError)
+        throw new Error("Failed to create user profile. Please try again.")
+      }
+
+      if (!profile) {
+        console.error("Profile not found after creation")
+        throw new Error("Failed to create user profile. Please try again.")
+      }
+
+      console.log("Profile verified:", profile)
+
+      // Step 3: Fetch the complete user profile
+      await fetchUserProfile(authData.user.id)
+      
+      console.log("Registration process completed successfully")
+    } catch (error) {
+      console.error("Registration failed with error:", error)
+      if (error instanceof Error) {
+        throw new Error(error.message)
+      }
+      throw new Error("Registration failed. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user) throw new Error("No user logged in")
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", user.id)
+        .select()
+        .single()
+
+      if (error) throw error
+      setProfile(data)
+    } catch (error) {
+      console.error("UserProvider - Update profile error:", error)
+      throw error
+    }
+  }
+
+  const updatePreferences = async (preferences: Partial<UserProfile["preferences"]>) => {
+    if (!profile) return Promise.reject("No user logged in")
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          preferences: {
+            reminders: preferences.reminders ?? profile.preferences.reminders,
+            morning_reminder: preferences.morningReminder ?? profile.preferences.morningReminder,
+            evening_reminder: preferences.eveningReminder ?? profile.preferences.eveningReminder,
+            notifications: {
+              training: preferences.notifications?.training ?? profile.preferences.notifications.training,
+              achievements: preferences.notifications?.achievements ?? profile.preferences.notifications.achievements,
+              weekly_reports: preferences.notifications?.weeklyReports ?? profile.preferences.notifications.weeklyReports,
+              coach_tips: preferences.notifications?.coachTips ?? profile.preferences.notifications.coachTips,
+            },
+            theme: preferences.theme ?? profile.preferences.theme,
+            language: preferences.language ?? profile.preferences.language,
+          },
+        })
+        .eq("id", profile.id)
+
+      if (error) throw error
+
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              preferences: { ...prev.preferences, ...preferences },
+            }
+          : null,
+      )
+      return Promise.resolve()
+    } catch (error) {
+      console.error("Failed to update preferences:", error)
+      return Promise.reject(error)
+    }
+  }
+
+  const value = {
+    user,
+    profile,
+    isAuthenticated: !!user,
+    isLoading,
+    login,
+    logout,
+    register,
+    updateProfile,
+    updatePreferences,
+  }
+
+  console.log("UserProvider - Current state:", { 
+    user: user ? { id: user.id, email: user.email } : null, 
+    profile: profile ? { id: profile.id, name: profile.name } : null, 
+    isAuthenticated: !!user, 
+    isLoading 
+  })
+
+  return <UserContext.Provider value={value}>{children}</UserContext.Provider>
+}
