@@ -12,23 +12,28 @@ export interface UserProfile {
   id: string
   name: string
   email: string
-  avatar?: string
-  memberSince: string
+  avatar_url?: string | null
+  member_since: string
   level: number
-  isPremium: boolean
+  is_premium: boolean
   preferences: {
     reminders: boolean
-    morningReminder: string
-    eveningReminder: string
+    morning_reminder: string
+    evening_reminder: string
     notifications: {
       training: boolean
       achievements: boolean
-      weeklyReports: boolean
-      coachTips: boolean
+      weekly_reports: boolean
+      coach_tips: boolean
     }
     theme: string
     language: string
   }
+  age?: number | null
+  height?: number | null
+  weight?: number | null
+  gender?: string | null
+  bio?: string | null
 }
 
 interface UserContextType {
@@ -192,6 +197,18 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
           },
         },
       })
+
+      if (authData.user) {
+        // Explicitly set member_since for new users
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({ member_since: new Date().toISOString() })
+          .eq('id', authData.user.id);
+
+        if (updateError) {
+          console.error("Error setting member_since for new user:", updateError);
+        }
+      }
       
       if (authError) {
         console.error("Auth error during registration:", authError)
@@ -243,61 +260,81 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   }
 
   const updateProfile = async (updates: Partial<UserProfile>) => {
-    if (!user) throw new Error("No user logged in")
-
+    if (!user) throw new Error("User not authenticated")
+    console.log("UserProvider - Updating profile for user:", user.id, "with updates:", updates)
     try {
+      // Prepare updates, ensuring correct types for Supabase
+      const dbUpdates: Tables<'profiles'>['Update'] = {
+        name: updates.name,
+        email: updates.email,
+        avatar_url: updates.avatar_url,
+        age: updates.age,
+        height: updates.height,
+        weight: updates.weight,
+        gender: updates.gender,
+        bio: updates.bio,
+        // Ensure preferences are handled correctly if they are part of 'updates'
+        // For now, assuming preferences are updated via updatePreferences
+      }
+
+      // Remove undefined fields to avoid issues with Supabase update
+      Object.keys(dbUpdates).forEach(key => {
+        if (dbUpdates[key as keyof typeof dbUpdates] === undefined) {
+          delete dbUpdates[key as keyof typeof dbUpdates];
+        }
+      });
+
       const { data, error } = await supabase
         .from("profiles")
-        .update(updates)
+        .update(dbUpdates)
         .eq("id", user.id)
         .select()
         .single()
 
-      if (error) throw error
-      setProfile(data)
+      if (error) {
+        console.error("UserProvider - Error updating profile:", error)
+        throw error
+      }
+
+      console.log("UserProvider - Profile updated successfully:", data)
+      // Merge the updates into the existing profile state to ensure all fields are present
+      setProfile(prevProfile => ({
+        ...(prevProfile as UserProfile), // Cast to UserProfile to satisfy TS
+        ...(data as UserProfile), // Spread the returned data which should be the updated profile
+      }))
     } catch (error) {
-      console.error("UserProvider - Update profile error:", error)
+      console.error("UserProvider - Failed to update profile:", error)
       throw error
     }
   }
 
+// Add this function inside UserProvider
   const updatePreferences = async (preferences: Partial<UserProfile["preferences"]>) => {
-    if (!profile) return Promise.reject("No user logged in")
-
+    if (!user || !profile) throw new Error("User or profile not available")
+    console.log("UserProvider - Updating preferences for user:", user.id, "with:", preferences)
     try {
-      const { error } = await supabase
+      const newPreferences = { ...profile.preferences, ...preferences };
+      const { data, error } = await supabase
         .from("profiles")
-        .update({
-          preferences: {
-            reminders: preferences.reminders ?? profile.preferences.reminders,
-            morning_reminder: preferences.morningReminder ?? profile.preferences.morningReminder,
-            evening_reminder: preferences.eveningReminder ?? profile.preferences.eveningReminder,
-            notifications: {
-              training: preferences.notifications?.training ?? profile.preferences.notifications.training,
-              achievements: preferences.notifications?.achievements ?? profile.preferences.notifications.achievements,
-              weekly_reports: preferences.notifications?.weeklyReports ?? profile.preferences.notifications.weeklyReports,
-              coach_tips: preferences.notifications?.coachTips ?? profile.preferences.notifications.coachTips,
-            },
-            theme: preferences.theme ?? profile.preferences.theme,
-            language: preferences.language ?? profile.preferences.language,
-          },
-        })
-        .eq("id", profile.id)
+        .update({ preferences: newPreferences })
+        .eq("id", user.id)
+        .select()
+        .single()
 
-      if (error) throw error
+      if (error) {
+        console.error("UserProvider - Error updating preferences:", error)
+        throw error
+      }
 
-      setProfile((prev) =>
-        prev
-          ? {
-              ...prev,
-              preferences: { ...prev.preferences, ...preferences },
-            }
-          : null,
-      )
-      return Promise.resolve()
+      console.log("UserProvider - Preferences updated successfully:", data)
+      // Merge the updates into the existing profile state
+      setProfile(prevProfile => ({
+        ...(prevProfile as UserProfile),
+        ...(data as UserProfile),
+      }))
     } catch (error) {
-      console.error("Failed to update preferences:", error)
-      return Promise.reject(error)
+      console.error("UserProvider - Failed to update preferences:", error)
+      throw error
     }
   }
 

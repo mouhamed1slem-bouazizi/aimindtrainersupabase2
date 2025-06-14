@@ -30,6 +30,12 @@ export interface Database {
             theme: string
             language: string
           }
+          avatar_url?: string | null
+          age?: number | null
+          height?: number | null
+          weight?: number | null
+          gender?: string | null
+          bio?: string | null
         }
         Insert: {
           id: string
@@ -51,6 +57,12 @@ export interface Database {
             theme: string
             language: string
           }
+          avatar_url?: string | null
+          age?: number | null
+          height?: number | null
+          weight?: number | null
+          gender?: string | null
+          bio?: string | null
         }
         Update: {
           id?: string
@@ -72,6 +84,12 @@ export interface Database {
             theme: string
             language: string
           }
+          avatar_url?: string | null
+          age?: number | null
+          height?: number | null
+          weight?: number | null
+          gender?: string | null
+          bio?: string | null
         }
       }
       game_stats: {
@@ -149,4 +167,4 @@ export interface Database {
       [_ in never]: never
     }
   }
-} 
+}

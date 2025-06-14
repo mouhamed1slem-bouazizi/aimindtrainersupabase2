@@ -12,7 +12,7 @@ import { NotificationSettings } from "@/components/profile/notification-settings
 import { SubscriptionSettings } from "@/components/profile/subscription-settings"
 
 export default function ProfilePage() {
-  const { user, logout } = useUser()
+  const { user, profile, logout } = useUser() // Added profile here
 
   if (!user) {
     return (
@@ -28,11 +28,17 @@ export default function ProfilePage() {
   }
 
   // Add fallback for user properties
-  const userName = user.name || "User"
-  const userInitials = user.name ? user.name.substring(0, 2).toUpperCase() : "U"
-  const memberSince = user.memberSince || user.member_since || "Unknown"
-  const userLevel = user.level || 1
-  const isPremium = user.isPremium || user.is_premium || false
+  // Use profile for display data if available, otherwise fallback to user, then defaults
+  const displayName = profile?.name || user?.name || "User"
+  const displayInitials = displayName ? displayName.substring(0, 2).toUpperCase() : "U"
+  const displayMemberSince = profile?.member_since
+    ? new Date(profile.member_since).toLocaleDateString()
+    : user?.member_since
+    ? new Date(user.member_since).toLocaleDateString()
+    : "Unknown"
+  const displayLevel = profile?.level || user?.level || 1
+  const displayIsPremium = profile?.isPremium || user?.is_premium || false
+  const displayAvatarUrl = profile?.avatar_url || user?.avatar_url || "/placeholder-user.jpg" // Use placeholder-user.jpg as a fallback
 
   return (
     <div className="container px-4 py-6 space-y-6">
@@ -42,18 +48,18 @@ export default function ProfilePage() {
         <CardContent className="p-6">
           <div className="flex items-center">
             <Avatar className="h-16 w-16 mr-4">
-              <AvatarImage src="/placeholder.svg?height=80&width=80" alt={userName} />
-              <AvatarFallback>{userInitials}</AvatarFallback>
+              <AvatarImage src={displayAvatarUrl} alt={displayName} />
+              <AvatarFallback>{displayInitials}</AvatarFallback>
             </Avatar>
             <div>
-              <h2 className="text-xl font-bold">{userName}</h2>
-              <p className="text-sm text-muted-foreground">Member since {memberSince}</p>
+              <h2 className="text-xl font-bold">{displayName}</h2>
+              <p className="text-sm text-muted-foreground">Member since {displayMemberSince}</p>
               <div className="flex items-center mt-1">
                 <Badge variant="secondary" className="mr-2">
                   <Brain className="h-3 w-3 mr-1" />
-                  Level {userLevel}
+                  Level {displayLevel}
                 </Badge>
-                {isPremium && <Badge variant="outline">Premium</Badge>}
+                {displayIsPremium && <Badge variant="outline">Premium</Badge>}
               </div>
             </div>
           </div>

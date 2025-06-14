@@ -1,0 +1,28 @@
+for first time
+git status | cat
+
+git init
+
+git add .
+
+git commit -m "Initial commit"
+
+git remote add origin https://github.com/yourusername/mindtrainersupabase.git
+git branch -M main
+git push -u origin main
+
+
+To pushing future updates to your repository
+
+git status
+
+git add .
+
+git commit -m "Description of your changes"
+
+git push
+
+
+to download update from git
+git pull
+
