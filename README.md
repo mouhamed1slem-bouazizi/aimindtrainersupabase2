@@ -155,7 +155,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Mohamed Islem Bouazizi**
 - GitHub: [@mouhamed1slem-bouazizi](https://github.com/mouhamed1slem-bouazizi)
-- Email: [your-email@example.com](mailto:mib@programmer.net)
+- Email: [mib@programmer.net](mailto:mib@programmer.net)
 
 ## 🔗 Links
 
