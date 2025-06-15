@@ -155,11 +155,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Mohamed Islem Bouazizi**
 - GitHub: [@mouhamed1slem-bouazizi](https://github.com/mouhamed1slem-bouazizi)
+- LinkedIn: [Your LinkedIn Profile](https://www.linkedin.com/in/mouhamed-islem-bouazizi-692051a1/)
 - Email: [mib@programmer.net](mailto:mib@programmer.net)
 
 ## 🔗 Links
 
 - [Live Demo](https://aimindtrainersupabase2.vercel.app/)
+- Test account email:user@test.test password:user
 - [Documentation](https://aimindtrainersupabase2.vercel.app/)
 - [Report Bug](https://github.com/mouhamed1slem-bouazizi/aimindtrainersupabase2/issues)
 - [Request Feature](https://github.com/mouhamed1slem-bouazizi/aimindtrainersupabase2/issues)
